@@ -79,7 +79,7 @@ RNAAnnotateCelltype <- function(RNA, genes, signatures = "human.immune.CIBERSORT
                                 "CD8Tex", "Endothelial", "Eosinophils", "Fibroblasts", "Mono/Macro", "Mono/Macro", 
                                 "Mono/Macro", "B", "Mono/Macro", "Myofibroblasts", "B", "CD4Tconv", 
                                 "Neutrophils", "Plasma", "DC", "Mast", "CD4Tconv", "NK", 
-                                "pDC", "CD4Tconv", "TMKI67", "Treg")
+                                "pDC", "CD4Tconv", "Tprolif", "Treg")
             RNA@meta.data$assign.ident = plyr::mapvalues(x = RNA@meta.data$assign.ident,
                                                          from = current.cluster.ids, to = new.cluster.ids)
         }
