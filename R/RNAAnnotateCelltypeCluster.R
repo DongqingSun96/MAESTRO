@@ -33,7 +33,7 @@ RNAAnnotateCelltypeCluster <- function(genes, signatures = "human.immune.CIBERSO
         signatures = get(signatures)
     }
     celltypes <- as.character(unique(signatures[,1]))
-    signature_list <- sapply(1:length(celltypes),function(x){
+    signature_list <- lapply(1:length(celltypes),function(x){
                       return(toupper(as.character(signatures[which(signatures[,1]==celltypes[x]),2])))})
     names(signature_list) <- celltypes
     idx = genes$cluster==cluster

@@ -76,70 +76,73 @@ RNACorrectCelltype <- function(RNA, genes, celltype = "nonimmune", signatures, s
     }
     
     cluster_df = cluster_celltype_df[cluster_celltype_df$celltype %in% celltype_list, ]
-    cluster_celltype = cluster_df$celltype
-    names(cluster_celltype) = cluster_df$seurat_clusters
-    cluster_list = names(cluster_celltype)
-    
-    cluster_assign.score = sapply(cluster_list, function(x){
-        celltype_score = RNAAnnotateCelltypeCluster(genes = genes, signatures = signatures, cluster = x)
-        return(celltype_score)
-    })
-    
-    if (strategy == "max") {
-        cluster_celltype_corrected = apply(cluster_assign.score, 2, function(x){
-            celltype_corrected = rownames(cluster_assign.score)[which.max(x)]
-            return(celltype_corrected)
+    if (nrow(cluster_df) == 0){
+        warning(paste(celltype_list, " not included!"))
+    } else {
+        cluster_celltype = cluster_df$celltype
+        names(cluster_celltype) = cluster_df$seurat_clusters
+        cluster_list = names(cluster_celltype)
+        cluster_assign.score = sapply(cluster_list, function(x){
+            celltype_score = RNAAnnotateCelltypeCluster(genes = genes, signatures = signatures, cluster = x)
+            return(celltype_score)
         })
-        names(cluster_celltype_corrected) = colnames(cluster_assign.score)
-    }
-    if (strategy == "positive") {
-        cluster_celltype_corrected = sapply(cluster_list, function(x){
-            if (cluster_assign.score[1, x] > score.cutoff) {
-                celltype_corrected =  cluster_celltype[x]
-            } else {
-                celltype_corrected = celltype_fuzzy
-            }
-            return(celltype_corrected)
-        })
-        names(cluster_celltype_corrected) = cluster_list
-    }
-    if (strategy == "negative") {
-        cluster_celltype_corrected = sapply(cluster_list, function(x){
-            if (cluster_assign.score[1, x] < score.cutoff) {
-                celltype_corrected =  cluster_celltype[x]
-            } else {
-                celltype_corrected = celltype_fuzzy
-            }
-            return(celltype_corrected)
-        })
-        names(cluster_celltype_corrected) = cluster_list
-    }
-    if (strategy == "mixed") {
-        cluster_celltype_corrected = sapply(cluster_list, function(x){
-            if (T_cluster_celltype[x] == "CD4Tconv") {
-                if (cluster_assign.score["CD8T",x] > cluster_assign.score["CD4Tconv",x] & cluster_assign.score["CD8T",x] > 0) {
-                    celltype_corrected = "CD8T"
+
+        if (strategy == "max") {
+            cluster_celltype_corrected = apply(cluster_assign.score, 2, function(x){
+                celltype_corrected = rownames(cluster_assign.score)[which.max(x)]
+                return(celltype_corrected)
+            })
+            names(cluster_celltype_corrected) = colnames(cluster_assign.score)
+        }
+        if (strategy == "positive") {
+            cluster_celltype_corrected = sapply(cluster_list, function(x){
+                if (cluster_assign.score[1, x] > score.cutoff) {
+                    celltype_corrected =  cluster_celltype[x]
                 } else {
-                    celltype_corrected = cluster_celltype[x]
+                    celltype_corrected = celltype_fuzzy
                 }
-            } else{
-                if (cluster_assign.score["CD4Tconv",x] > cluster_assign.score["CD8T",x] & cluster_assign.score["CD4Tconv",x] > 0) {
-                    celltype_corrected = "CD4Tconv"
+                return(celltype_corrected)
+            })
+            names(cluster_celltype_corrected) = cluster_list
+        }
+        if (strategy == "negative") {
+            cluster_celltype_corrected = sapply(cluster_list, function(x){
+                if (cluster_assign.score[1, x] < score.cutoff) {
+                    celltype_corrected =  cluster_celltype[x]
                 } else {
-                    celltype_corrected = cluster_celltype[x]
+                    celltype_corrected = celltype_fuzzy
                 }
-            }
-            return(celltype_corrected)
-        })
-        names(cluster_celltype_corrected) = cluster_list
+                return(celltype_corrected)
+            })
+            names(cluster_celltype_corrected) = cluster_list
+        }
+        if (strategy == "mixed") {
+            cluster_celltype_corrected = sapply(cluster_list, function(x){
+                if (cluster_celltype[x] == "CD4Tconv") {
+                    if (cluster_assign.score["CD8T",x] > cluster_assign.score["CD4Tconv",x] & cluster_assign.score["CD8T",x] > 0) {
+                        celltype_corrected = "CD8T"
+                    } else {
+                        celltype_corrected = cluster_celltype[x]
+                    }
+                } else{
+                    if (cluster_assign.score["CD4Tconv",x] > cluster_assign.score["CD8T",x] & cluster_assign.score["CD4Tconv",x] > 0) {
+                        celltype_corrected = "CD4Tconv"
+                    } else {
+                        celltype_corrected = cluster_celltype[x]
+                    }
+                }
+                return(celltype_corrected)
+            })
+            names(cluster_celltype_corrected) = cluster_list
+        }
+        
+        for (i in names(cluster_celltype_corrected)){
+            cluster_celltype_df[cluster_celltype_df$seurat_clusters == i, "assign.MAESTRO"] = cluster_celltype_corrected[i]
+        }
+        RNA@meta.data$assign.MAESTRO = as.character(RNA@meta.data$seurat_clusters)
+        RNA@meta.data$assign.MAESTRO = plyr::mapvalues(x = RNA@meta.data$assign.MAESTRO,
+                                                       from = cluster_celltype_df$seurat_clusters, to = cluster_celltype_df$assign.MAESTRO)
     }
-    
-    for (i in names(cluster_celltype_corrected)){
-        cluster_celltype_df[cluster_celltype_df$seurat_clusters == i, "assign.MAESTRO"] = cluster_celltype_corrected[i]
-    }
-    RNA@meta.data$assign.MAESTRO = as.character(RNA@meta.data$seurat_clusters)
-    RNA@meta.data$assign.MAESTRO = plyr::mapvalues(x = RNA@meta.data$assign.MAESTRO,
-                                                   from = cluster_celltype_df$seurat_clusters, to = cluster_celltype_df$assign.MAESTRO)
     
     p = DimPlot(object = RNA, label = TRUE, pt.size = 0.2, group.by = "assign.MAESTRO", label.size = 3, repel = T)
     ggsave(paste0(RNA@project.name, "_annotated_MAESTRO.png"), p, width=6, height=4)

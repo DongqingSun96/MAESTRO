@@ -3,7 +3,7 @@
 # @E-mail: Dongqingsun96@gmail.com
 # @Date:   2020-04-21 13:39:27
 # @Last Modified by:   Dongqing Sun
-# @Last Modified time: 2020-06-01 17:49:46
+# @Last Modified time: 2020-08-31 10:14:22
 
 
 import os
@@ -56,6 +56,9 @@ def scrna_analysis_parser(subparsers):
     group_input.add_argument("--assembly", dest = "assembly", default = "GRCh38", 
         choices = ["GRCh38", "GRCm38", "GRCh37", "NCBIM37"], type = str, 
         help = "Assembly (GRCh38/hg38 and GRCh37/hg19 for human, GRCm38/mm10 and NCBIM37/mm9 for mouse). DEFAULT: GRCh38.")
+    group_input.add_argument("--marker-file", dest = "marker_file", default = "",
+        help = "Location of cell marker file (only for non-immune cells). "
+        "The marker file is tab-seperated without header. The first column is cell type, and the second column is signature gene. ")
 
     # Quality control cutoff
     group_cutoff = workflow.add_argument_group("Quality control arguments")
@@ -74,7 +77,7 @@ def scrna_analysis_parser(subparsers):
 
 
 # Generate Rscript
-def GenerateRscript(count_file, gene_idtype, gene_cutoff, cell_cutoff, meta_file, meta_sep, meta_cell, assembly, outprefix, directory):
+def GenerateRscript(count_file, gene_idtype, gene_cutoff, cell_cutoff, meta_file, meta_sep, meta_cell, assembly, marker_file, outprefix, directory):
 
     rfile = os.path.join(directory, "%s.R" %(outprefix))
     outf = open(rfile, "w")
@@ -180,9 +183,28 @@ RNA.res = RNARunSeurat(inputMat = expr,
 RNA.res$RNA = RNAAnnotateCelltype(RNA = RNA.res$RNA, 
                                   genes = RNA.res$genes,
                                   signatures = "human.immune.CIBERSORT",
-                                  min.score = 0.1)
+                                  min.score = 0.1)\n
+# differential analysis (all genes)
+diff.gene.all = FindAllMarkersMAESTRO(object = RNA.res$RNA, test.use = "presto", min.pct = 0, logfc.threshold = 0, only.pos = FALSE)
+write.table(diff.gene.all, paste0(RNA.res$RNA@project.name, "_AllGenes.tsv"), quote = F, sep = "\\t")\n
+# immune cell-type correction
+celltypes_check = c("CD4T/CD8T", "CD8Tex", "Tprolif", "NK", "pDC")
+for (celltype in celltypes_check) {
+  if (celltype %%in%% unique(RNA.res$RNA@meta.data$assign.ident)) {
+    RNA.res$RNA = RNACorrectCelltype(RNA = RNA.res$RNA, genes = diff.gene.all,celltype = celltype)
+  }
+}
 ''' %(outprefix, cell_cutoff, gene_cutoff, species)
     outf.write(script)
+    
+    # read marker file
+    if marker_file:
+        script = '''
+# non-immune cell-type correction
+marker = read.delim("%s", header = FALSE, sep = "\\t", stringsAsFactors = FALSE)
+RNA.res$RNA = RNACorrectCelltype(RNA = RNA.res$RNA, genes = diff.gene.all, celltype = "nonimmune", signatures = marker)
+''' %(os.path.abspath(marker_file))
+        outf.write(script)
 
     # read metadata
     if meta_file:
@@ -194,16 +216,18 @@ RNA.res$RNA = RNAAnnotateCelltype(RNA = RNA.res$RNA,
             sep = ","
         script = '''
 # add metadata
-meta = read.delim("%s", header = T, row.names = %d, sep = "%s")
+meta = read.delim("%s", header = T, row.names = %d, sep = "%s", stringsAsFactors = FALSE)
 RNA.res$RNA@meta.data = cbind(RNA.res$RNA@meta.data, meta[colnames(RNA.res$RNA),, drop = FALSE])
 for (i in colnames(meta)) {
-  p = DimPlot(object = RNA.res$RNA, group = i, label = FALSE, pt.size = 0.1)
-  if (length(unique(RNA.res$RNA@meta.data[,i])) > 20) {
-    plot_width = 10
-  } else {
-    plot_width = 7
+  if (class(meta[,i]) == "character") {
+    p = DimPlot(object = RNA.res$RNA, group = i, label = FALSE, pt.size = 0.1)
+    if (length(unique(RNA.res$RNA@meta.data[,i])) > 20) {
+      plot_width = 10
+    } else {
+      plot_width = 7
+    }
+    ggsave(file.path(paste0(RNA.res$RNA@project.name, "_", i, ".png")), p,  width=plot_width, height=5)
   }
-  ggsave(file.path(paste0(RNA.res$RNA@project.name, "_", i, ".png")), p,  width=plot_width, height=5)
 }
 ''' %(os.path.abspath(meta_file), meta_cell, sep)
         outf.write(script)
@@ -218,7 +242,7 @@ saveRDS(RNA.res, "%s_res.rds")
     return os.path.abspath(rfile)
 
 
-def scrna_analysis(directory, outprefix, fileformat, matrix, separator, feature, gene_column, gene_idtype, barcode, meta_file, meta_sep, meta_cell, count_cutoff, gene_cutoff, cell_cutoff, assembly):
+def scrna_analysis(directory, outprefix, fileformat, matrix, separator, feature, gene_column, gene_idtype, barcode, meta_file, meta_sep, meta_cell, count_cutoff, gene_cutoff, cell_cutoff, assembly, marker_file):
 
     try:
         os.makedirs(directory)
@@ -231,7 +255,7 @@ def scrna_analysis(directory, outprefix, fileformat, matrix, separator, feature,
 
     count_file = os.path.abspath(os.path.join("Data", outprefix + "_filtered_gene_count.h5"))
 
-    rscript = GenerateRscript(count_file, gene_idtype, gene_cutoff, cell_cutoff, meta_file, meta_sep, meta_cell, assembly, outprefix, directory)
+    rscript = GenerateRscript(count_file, gene_idtype, gene_cutoff, cell_cutoff, meta_file, meta_sep, meta_cell, assembly, marker_file, outprefix, directory)
 
     cmd = "Rscript %s" %(rscript)
     os.system(cmd)
