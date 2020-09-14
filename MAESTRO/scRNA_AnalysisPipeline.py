@@ -3,7 +3,7 @@
 # @E-mail: Dongqingsun96@gmail.com
 # @Date:   2020-04-21 13:39:27
 # @Last Modified by:   Dongqing Sun
-# @Last Modified time: 2020-08-31 10:14:22
+# @Last Modified time: 2020-09-05 16:59:44
 
 
 import os
@@ -183,7 +183,7 @@ RNA.res = RNARunSeurat(inputMat = expr,
 RNA.res$RNA = RNAAnnotateCelltype(RNA = RNA.res$RNA, 
                                   genes = RNA.res$genes,
                                   signatures = "human.immune.CIBERSORT",
-                                  min.score = 0.1)\n
+                                  min.score = 0.6)\n
 # differential analysis (all genes)
 diff.gene.all = FindAllMarkersMAESTRO(object = RNA.res$RNA, test.use = "presto", min.pct = 0, logfc.threshold = 0, only.pos = FALSE)
 write.table(diff.gene.all, paste0(RNA.res$RNA@project.name, "_AllGenes.tsv"), quote = F, sep = "\\t")\n

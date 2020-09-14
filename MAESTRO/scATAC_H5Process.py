@@ -3,7 +3,7 @@
 # @E-mail: Dongqingsun96@gmail.com
 # @Date:   2020-02-23 19:44:05
 # @Last Modified by:   Dongqing Sun
-# @Last Modified time: 2020-05-27 12:26:48
+# @Last Modified time: 2020-09-07 23:10:14
 
 
 import os
@@ -172,17 +172,31 @@ def mergeh5_parser(subparsers):
 FeatureBCMatrix = collections.namedtuple('FeatureBCMatrix', ['ids', 'names', 'barcodes', 'matrix'])
 
 
-def read_10X_h5(filename):
+def read_10X_h5(filename, genome = "GRCh38"):
     """Read 10X HDF5 files, support both gene expression and peaks."""
     with tables.open_file(filename, 'r') as f:
         try:
             group = f.get_node(f.root, 'matrix')
         except tables.NoSuchNodeError:
-            print("Matrix group does not exist in this file.")
-            return None
-        feature_group = getattr(group, 'features')
-        ids = getattr(feature_group, 'id').read()
-        names = getattr(feature_group, 'name').read()
+            try:
+                group = f.get_node(f.root, genome)
+            except tables.NoSuchNodeError:
+                try:
+                    group = f.get_node(f.root, genome + "_premrna")
+                except:
+                    print("Matrix group does not exist in this file.")
+                    return None
+        try:
+            feature_group = getattr(group, 'features')
+            ids = getattr(feature_group, 'id').read()
+            names = getattr(feature_group, 'name').read()
+        except tables.NoSuchNodeError:
+            try:
+                ids = getattr(group, 'genes').read()
+                names = getattr(group, 'gene_names').read()
+            except tables.NoSuchNodeError:
+                print("features group does not exist in this file.")
+                return None
         barcodes = getattr(group, 'barcodes').read()
         data = getattr(group, 'data').read()
         indices = getattr(group, 'indices').read()
@@ -235,7 +249,7 @@ def merge_10X_h5(directory, outprefix, h5list, prefixlist, genome = 'GRCh38', da
     
     mlist = []
     for file in h5list:
-        mlist.append(read_10X_h5(file))
+        mlist.append(read_10X_h5(file, genome))
     
     dflist = []
     for i in range(0,len(mlist)):
@@ -347,7 +361,7 @@ def h5_2_count(directory, outprefix, h5_file, genome = 'GRCh38', datatype = 'Pea
         # next step.
         pass
 
-    scrna_count = read_10X_h5(h5_file)
+    scrna_count = read_10X_h5(h5_file, genome)
     rawmatrix = scrna_count.matrix
     features = scrna_count.names.tolist()
     barcodes = scrna_count.barcodes.tolist()
