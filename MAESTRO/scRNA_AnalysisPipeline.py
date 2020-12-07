@@ -3,7 +3,7 @@
 # @E-mail: Dongqingsun96@gmail.com
 # @Date:   2020-04-21 13:39:27
 # @Last Modified by:   Dongqing Sun
-# @Last Modified time: 2020-09-05 16:59:44
+# @Last Modified time: 2020-12-07 15:07:11
 
 
 import os
@@ -21,6 +21,9 @@ def scrna_analysis_parser(subparsers):
     workflow = subparsers.add_parser("scrna-analysis", 
         help = "Run MAESTRO analysis pipeline from scRNA-seq gene-cell count matrix. ")
     group_input = workflow.add_argument_group("Input files arguments")
+    group_input.add_argument("--mode", dest = "mode", default = "tumor", 
+        choices = ["tumor", "normal"], 
+        help = "Mode to run MAESTRO pipeline.")
     group_input.add_argument("--format", dest = "format", default = "", 
         choices = ["h5", "mtx", "plain"], 
         help = "Format of the count matrix file.")
@@ -146,8 +149,9 @@ expr = RNAEnsemblToSymbol(expr, organism = "GRCm38")
             outf.write(script)
         species = "GRCm38"
 
+    if mode == "tumor":
     # analysis
-    script = '''
+        script = '''
 # choose optimal pc and resolution based on cell number
 cells <- ncol(expr)
 if (cells <= 5000) {
@@ -195,15 +199,65 @@ for (celltype in celltypes_check) {
   }
 }
 ''' %(outprefix, cell_cutoff, gene_cutoff, species)
-    outf.write(script)
+        outf.write(script)
     
-    # read marker file
-    if marker_file:
-        script = '''
+        # read marker file
+        if marker_file:
+            script = '''
 # non-immune cell-type correction
 marker = read.delim("%s", header = FALSE, sep = "\\t", stringsAsFactors = FALSE)
 RNA.res$RNA = RNACorrectCelltype(RNA = RNA.res$RNA, genes = diff.gene.all, celltype = "nonimmune", signatures = marker)
 ''' %(os.path.abspath(marker_file))
+            outf.write(script)
+
+    elif mode == "normal":
+        script = '''
+# choose npc and resolution based on cell number
+cells <- ncol(expr)
+if (cells <= 5000) {
+  npc <- 50; cluster.res <- 0.6
+} else if(cells <= 100000) {
+  npc <- 50; cluster.res <- 1
+} else {
+  npc <- 100; cluster.res <- 1
+}\n
+# clustering
+RNA.res = RNARunSeurat(inputMat = expr, 
+                       project = "%s", 
+                       min.c = %d,
+                       min.g = %d,
+                       runpca.agrs = list(npcs = npc),
+                       dims.use = 1:15,
+                       variable.genes = 2000, 
+                       organism = "%s",
+                       cluster.res = cluster.res,
+                       genes.test.use = "presto",
+                       only.pos = FALSE,
+                       genes.cutoff = 1e-05)\n
+# adjust dims.use according to the cumulative explained variance ratio
+pc.contribution <- RNA.res$RNA@reductions$pca@stdev / sum(RNA.res$RNA@reductions$pca@stdev) * 100
+pc.contribution.cum <- cumsum(pc.contribution)
+pc.first <- which(pc.contribution.cum > 75)[1]
+dims.use = 1:pc.first\n
+# re-run UMAP, clustering and differential gene identification
+#========UMAP, clustering========
+RNA.res$RNA <- RunUMAP(object = RNA.res$RNA, reduction = "pca", dims = dims.use)
+RNA.res$RNA <- FindNeighbors(object = RNA.res$RNA, reduction = "pca", dims = dims.use)
+RNA.res$RNA <- FindClusters(object = RNA.res$RNA, resolution = cluster.res)
+p = DimPlot(object = RNA.res$RNA, label = TRUE, pt.size = 0.2)
+ggsave(file.path(paste0(RNA.res$RNA@project.name, "_cluster.png")), p,  width=5, height=4)
+#==========DE analysis===========
+message("Identify cluster specific genes ...")
+cluster.genes <- FindAllMarkersMAESTRO(object = RNA.res$RNA, min.pct = 0.1, logfc.threshold = 0.25, test.use = "presto", only.pos = FALSE)
+cluster.genes <- cluster.genes[cluster.genes$p_val_adj<1E-5, ]
+write.table(cluster.genes, paste0(RNA.res$RNA@project.name, "_DiffGenes.tsv"), quote = F, sep = "\t")
+RNA.res$genes <- cluster.genes\n
+# cell-type annotation
+RNA.res$RNA = RNAAnnotateCelltype(RNA = RNA.res$RNA, 
+                                  genes = RNA.res$genes,
+                                  signatures = "human.immune.CIBERSORT",
+                                  min.score = 0)\n
+''' %(outprefix, cell_cutoff, gene_cutoff, species)
         outf.write(script)
 
     # read metadata
