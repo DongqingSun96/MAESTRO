@@ -3,7 +3,7 @@
 # @E-mail: Dongqingsun96@gmail.com
 # @Date:   2020-04-21 13:39:27
 # @Last Modified by:   Dongqing Sun
-# @Last Modified time: 2020-12-07 15:07:11
+# @Last Modified time: 2020-12-08 14:57:03
 
 
 import os
@@ -80,7 +80,7 @@ def scrna_analysis_parser(subparsers):
 
 
 # Generate Rscript
-def GenerateRscript(count_file, gene_idtype, gene_cutoff, cell_cutoff, meta_file, meta_sep, meta_cell, assembly, marker_file, outprefix, directory):
+def GenerateRscript(mode, count_file, gene_idtype, gene_cutoff, cell_cutoff, meta_file, meta_sep, meta_cell, assembly, marker_file, outprefix, directory):
 
     rfile = os.path.join(directory, "%s.R" %(outprefix))
     outf = open(rfile, "w")
@@ -194,7 +194,9 @@ write.table(diff.gene.all, paste0(RNA.res$RNA@project.name, "_AllGenes.tsv"), qu
 # immune cell-type correction
 celltypes_check = c("CD4T/CD8T", "CD8Tex", "Tprolif", "NK", "pDC")
 for (celltype in celltypes_check) {
-  if (celltype %%in%% unique(RNA.res$RNA@meta.data$assign.ident)) {
+  if (celltype == "CD4T/CD8T" & any(c("CD4Tconv", "CD8T", "CD8Tex") %%in%% unique(RNA.res$RNA@meta.data$assign.ident))) {
+    RNA.res$RNA = RNACorrectCelltype(RNA = RNA.res$RNA, genes = diff.gene.all,celltype = celltype)
+  } else if (celltype %%in%% unique(RNA.res$RNA@meta.data$assign.ident)) {
     RNA.res$RNA = RNACorrectCelltype(RNA = RNA.res$RNA, genes = diff.gene.all,celltype = celltype)
   }
 }
@@ -296,7 +298,7 @@ saveRDS(RNA.res, "%s_res.rds")
     return os.path.abspath(rfile)
 
 
-def scrna_analysis(directory, outprefix, fileformat, matrix, separator, feature, gene_column, gene_idtype, barcode, meta_file, meta_sep, meta_cell, count_cutoff, gene_cutoff, cell_cutoff, assembly, marker_file):
+def scrna_analysis(directory, outprefix, mode, fileformat, matrix, separator, feature, gene_column, gene_idtype, barcode, meta_file, meta_sep, meta_cell, count_cutoff, gene_cutoff, cell_cutoff, assembly, marker_file):
 
     try:
         os.makedirs(directory)
@@ -309,7 +311,7 @@ def scrna_analysis(directory, outprefix, fileformat, matrix, separator, feature,
 
     count_file = os.path.abspath(os.path.join("Data", outprefix + "_filtered_gene_count.h5"))
 
-    rscript = GenerateRscript(count_file, gene_idtype, gene_cutoff, cell_cutoff, meta_file, meta_sep, meta_cell, assembly, marker_file, outprefix, directory)
+    rscript = GenerateRscript(mode, count_file, gene_idtype, gene_cutoff, cell_cutoff, meta_file, meta_sep, meta_cell, assembly, marker_file, outprefix, directory)
 
     cmd = "Rscript %s" %(rscript)
     os.system(cmd)

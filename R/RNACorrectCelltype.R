@@ -86,8 +86,10 @@ RNACorrectCelltype <- function(RNA, genes, celltype = "nonimmune", signatures, s
             celltype_score = RNAAnnotateCelltypeCluster(genes = genes, signatures = signatures, cluster = x)
             return(celltype_score)
         })
+        cluster_assign.score_names = names(cluster_assign.score)
         if (class(cluster_assign.score) != "matrix"){
             cluster_assign.score = matrix(cluster_assign.score, nrow = 1)
+            rownames(cluster_assign.score) = unlist(strsplit(cluster_assign.score_names[1], "\\."))[2]
             colnames(cluster_assign.score) = cluster_list
         }
 
