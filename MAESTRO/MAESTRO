@@ -94,7 +94,7 @@ def main():
         scatac_qc(directory = args.directory, outprefix = args.outprefix, fileformat = args.format, peakcount = args.peakcount, feature = args.feature, barcode = args.barcode, single_stat = args.single_stat, peak_cutoff = args.peak_cutoff, count_cutoff = args.count_cutoff, frip_cutoff = args.frip_cutoff, cell_cutoff = args.cell_cutoff, species = args.species)
 
     elif args.subcommand == "scrna-analysis":
-        scrna_analysis(directory = args.directory, outprefix = args.outprefix, fileformat = args.format, matrix = args.matrix, separator = args.separator, feature = args.feature, gene_column = args.gene_column, gene_idtype = args.gene_idtype, barcode = args.barcode, meta_file = args.meta_file, meta_sep = args.meta_sep, meta_cell = args.meta_cell, count_cutoff = args.count_cutoff, gene_cutoff = args.gene_cutoff, cell_cutoff = args.cell_cutoff, assembly = args.assembly, marker_file = args.marker_file)
+        scrna_analysis(directory = args.directory, outprefix = args.outprefix, mode = args.mode, fileformat = args.format, matrix = args.matrix, separator = args.separator, feature = args.feature, gene_column = args.gene_column, gene_idtype = args.gene_idtype, barcode = args.barcode, meta_file = args.meta_file, meta_sep = args.meta_sep, meta_cell = args.meta_cell, count_cutoff = args.count_cutoff, gene_cutoff = args.gene_cutoff, cell_cutoff = args.cell_cutoff, assembly = args.assembly, marker_file = args.marker_file)
     else:
         parser.print_help()
         exit(1)
