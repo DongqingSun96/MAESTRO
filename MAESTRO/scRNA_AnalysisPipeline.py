@@ -3,7 +3,7 @@
 # @E-mail: Dongqingsun96@gmail.com
 # @Date:   2020-04-21 13:39:27
 # @Last Modified by:   Dongqing Sun
-# @Last Modified time: 2020-12-08 14:57:03
+# @Last Modified time: 2021-02-20 20:08:29
 
 
 import os
@@ -179,7 +179,7 @@ RNA.res = RNARunSeurat(inputMat = expr,
                        dims.use = dims.use,
                        variable.genes = 2000, 
                        organism = "%s",
-                       cluster.res = 0.6,
+                       cluster.res = cluster.res,
                        genes.test.use = "presto",
                        only.pos = TRUE,
                        genes.cutoff = 1e-05)\n
